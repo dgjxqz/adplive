@@ -1,0 +1,40 @@
+#!/bin/sh
+# Boot Alpine Linux from USB flash drive without initramfs
+
+# To test with Qemu, untar to an empty directory and run this file (README)
+qemu-system-i386 -m 1g -kernel ${0%/*}/bzImage \
+	-usb -device usb-kbd -device usb-mouse \
+	-nic none -netdev user,id=c -device usb-net,netdev=c \
+	-drive if=none,id=d,format=raw,file=fat:rw:${0%/*}/.. \
+	-device usb-ehci -device usb-storage,drive=d \
+	-append 'rootdelay=2 root=/dev/sda1 init=adplive/init single'
+# To install to your USB pendrive, untar to its root directory and configure your bootloader with parameters equilvalent to append section of the above line
+
+exit # Everything below will not be run when this file is invoked
+# To start install Alpine packages
+ifup -a
+apk add squashfs-tools
+
+# To make installations permanet
+cd /tmp
+mount -o remount,rw root
+mksquashfs save SHORTNAME -comp xz -e tmp run
+# writing directly to root/adplive/fs from mksquashfs does not work under Qemu
+cp SHORTNAME root/adplive/fs
+# for consistent apk behavior, pick SHORTNAME so they sort by creation date
+# *.sqf are always mounted, others can be controlled through boot parameters
+
+# To delete them from pendrive, boot with parameter 'init=adplive/sh rw'
+adplive/toybox rm adplive/fs/YOURFILE
+exec adplive/init
+
+# To compile the kernel, cd to source
+sudo apk add gcc make musl-dev linux-headers bison flex xz
+cp /tmp/root/adplive/kconfig .config
+make olddefconfig bzImage
+
+# To run X Window with new kernel,
+apk add openrc eudev xorg-server xf86-input-libinput xterm
+openrc sysinit
+setup-udev
+startx
