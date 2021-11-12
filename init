@@ -1,0 +1,33 @@
+#!/adplive/sh
+q=adplive
+if [ ! -d dev ];then
+	$q/toybox mount -t tmpfs ram $q/ram
+	cd $q/ram
+	/$q/toybox mkdir save root proc dev ovl wrk mnt
+	/$q/toybox mkdir -m 1777 save/tmp
+	/$q/toybox mkdir save/tmp/save save/tmp/root
+	/$q/toybox mount -o bind / root
+	exec /$q/toybox chroot . /root/$q/sh root/$q/init "$@"
+fi
+if [ -d root/$q/fs ];then
+	root/$q/toybox mount -t devtmpfs dev dev
+	root/$q/toybox mount -t proc proc proc
+	read k <proc/cmdline
+	cd root/$q/fs
+	for k in *.sqf $k;do
+		k=${k%%=*}
+		if [ -r $k ];then
+			j=mnt/$k${j:+:$j};
+			/root/$q/toybox mkdir /mnt/$k
+			/root/$q/toybox mount -r $k /mnt/$k;
+		fi
+	done
+	cd /
+	root/$q/toybox mount -t overlay -o lowerdir=$j,upperdir=save,workdir=wrk ovl ovl
+	root/$q/toybox mount -o bind save ovl/tmp/save
+	root/$q/toybox mount -o bind root ovl/tmp/root
+	root/$q/toybox mount -o bind proc ovl/proc
+	root/$q/toybox mount -o bind dev ovl/dev
+	exec root/$q/toybox chroot ovl /bin/sh tmp/root/$q/init "$@"
+fi
+exec init "$@"
